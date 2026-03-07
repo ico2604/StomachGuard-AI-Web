@@ -1,6 +1,12 @@
 """
 Database initialization script with Multi-Task Learning support
 위암 분류 병원 관리 시스템 - 데이터베이스 초기화
+
+MySQL 사용 시:
+  1. MySQL 서버가 실행 중이어야 합니다.
+  2. .env의 DATABASE_URL에 설정한 데이터베이스를 미리 생성하세요:
+     mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS gastric_hospital CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+  3. python init_db.py 실행
 """
 
 import sys
@@ -11,11 +17,13 @@ BASE_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(BASE_DIR))
 
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 from passlib.context import CryptContext
 from datetime import datetime, date
 
 # 모든 모델 import (순서 중요!)
 from app.core.database import engine, SessionLocal, Base
+from app.core.config import settings
 from app.models.user import User, UserRole
 from app.models.patient import Patient, Gender
 from app.models.visit import Visit
@@ -27,6 +35,32 @@ try:
 except Exception as e:
     print(f"⚠️  bcrypt 경고: {e}")
     pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
+
+
+def check_mysql_connection():
+    """MySQL 연결 확인"""
+    if "mysql" not in settings.DATABASE_URL:
+        return True
+    
+    try:
+        with engine.connect() as conn:
+            result = conn.execute(text("SELECT 1"))
+            result.fetchone()
+        print("✅ MySQL 연결 성공")
+        return True
+    except Exception as e:
+        print(f"❌ MySQL 연결 실패: {e}")
+        print("\n💡 해결 방법:")
+        print("   1. MySQL 서버가 실행 중인지 확인:")
+        print("      - Windows: services.msc → MySQL 서비스 시작")
+        print("      - Mac: brew services start mysql")
+        print("      - Linux: sudo systemctl start mysql")
+        print("   2. .env 파일의 DATABASE_URL 확인:")
+        print(f"      현재: {settings.DATABASE_URL}")
+        print("      형식: mysql+pymysql://사용자:비밀번호@호스트:포트/DB이름")
+        print("   3. 데이터베이스 생성:")
+        print('      mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS gastric_hospital CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"')
+        return False
 
 
 def create_tables():
@@ -106,13 +140,12 @@ def create_sample_patients(db: Session):
     """샘플 환자 데이터 생성"""
     print("\n🏥 샘플 환자 데이터 생성 중...")
     
-    # 간단한 암호화 (실제 운영에서는 app.utils.crypto 사용)
     patients_data = [
         {
             "name": "홍길동",
             "birth_date": date(1980, 5, 15),
             "gender": Gender.MALE,
-            "phone": "010-1234-5678",  # 실제로는 암호화 필요
+            "phone": "010-1234-5678",
             "patient_number": "P2024001",
             "blood_type": "A+",
             "notes": "테스트 환자 1"
@@ -219,7 +252,6 @@ def create_sample_diagnoses(db: Session, visits):
                 "혼합형선암": 0.0132
             },
             "raw_logits": [1.2, 1.6, 3.5, 0.9],
-            # ⭐ Multi-Task Learning: Segmentation 결과
             "tumor_ratio": 0.3245,
             "stroma_ratio": 0.2876,
             "normal_ratio": 0.2543,
@@ -264,9 +296,14 @@ def main():
     print("=" * 60)
     print("🏥 위암 분류 병원 관리 시스템 - 데이터베이스 초기화")
     print("   Multi-Task Learning (UNet + ResNet50) 지원")
+    print(f"   DB: {settings.DATABASE_URL.split('@')[-1] if '@' in settings.DATABASE_URL else settings.DATABASE_URL}")
     print("=" * 60)
     
     try:
+        # MySQL 연결 확인
+        if not check_mysql_connection():
+            sys.exit(1)
+        
         # 테이블 생성
         create_tables()
         
@@ -303,7 +340,7 @@ def main():
             print("   간호사: nurse1 / nurse123")
             
             print("\n🚀 다음 단계:")
-            print("   1. 모델 파일 배치: copy unet_resnet50_best.pth .")
+            print("   1. 모델 파일 배치: copy mtl_best.pth .")
             print("   2. 서버 실행: uvicorn app.main:app --reload")
             print("   3. API 문서: http://localhost:8000/api/v1/docs")
             print("=" * 60)

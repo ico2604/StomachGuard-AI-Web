@@ -14,7 +14,7 @@ export default function Navbar() {
 
   useEffect(() => {
     // 로컬 스토리지에서 사용자 정보 가져오기
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('access_token');
     const userStr = localStorage.getItem('user');
     if (token && userStr) {
       setUser(JSON.parse(userStr));
@@ -23,7 +23,7 @@ export default function Navbar() {
 
   const handleLogout = () => {
     // 로그아웃 처리
-    localStorage.removeItem('token');
+    localStorage.removeItem('access_token');
     localStorage.removeItem('user');
     router.push('/login');
   };

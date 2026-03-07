@@ -1,0 +1,132 @@
+# ====================================================================
+# Docker Compose - 개발 환경
+# 핫리로드 + 소스 마운트 + 디버그 모드
+# ====================================================================
+#
+# 실행: docker compose -f docker-compose.dev.yml up --build
+# ====================================================================
+
+services:
+  # ===========================
+  # Redis
+  # ===========================
+  redis:
+    image: redis:7-alpine
+    container_name: gastric-redis-dev
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+
+  # ===========================
+  # PostgreSQL
+  # ===========================
+  postgres:
+    image: postgres:16-alpine
+    container_name: gastric-postgres-dev
+    environment:
+      POSTGRES_USER: gastric
+      POSTGRES_PASSWORD: gastric_dev
+      POSTGRES_DB: gastric_hospital
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gastric -d gastric_hospital"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+
+  # ===========================
+  # FastAPI (핫리로드)
+  # ===========================
+  fastapi:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: base
+    container_name: gastric-fastapi-dev
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    env_file:
+      - .env.docker
+    environment:
+      - DATABASE_URL=postgresql+psycopg2://gastric:gastric_dev@postgres:5432/gastric_hospital
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - DEBUG=True
+      - ENVIRONMENT=development
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app       # 소스 마운트 (핫리로드)
+      - /app/__pycache__     # 캐시 제외
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+
+  # ===========================
+  # Celery Worker (핫리로드)
+  # ===========================
+  celery-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: base
+    container_name: gastric-celery-dev
+    command: >
+      watchmedo auto-restart
+        --directory=/app --pattern="*.py" --recursive --
+        celery -A app.core.celery_app:celery_app worker
+        --loglevel=info --concurrency=1 --pool=solo
+        -Q ai_inference,db_operations,default
+    env_file:
+      - .env.docker
+    environment:
+      - DATABASE_URL=postgresql+psycopg2://gastric:gastric_dev@postgres:5432/gastric_hospital
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - AI_MODEL_PATH=/app/models/mtl_best.pth
+      - AI_DEVICE=cpu
+      - BATCH_SIZE=4
+      - BATCH_TIMEOUT_MS=200
+    volumes:
+      - ./backend:/app
+      - ./models:/app/models:ro
+      - /app/__pycache__
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+
+  # ===========================
+  # Next.js (핫리로드)
+  # ===========================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: deps
+    container_name: gastric-frontend-dev
+    command: npm run dev
+    environment:
+      - NEXT_PUBLIC_API_URL=/api/v1
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules     # 호스트 node_modules 무시
+      - /app/.next            # 빌드 캐시 무시
+    depends_on:
+      - fastapi
+
+volumes:
+  postgres_dev_data:

@@ -4,6 +4,7 @@ uvicorn[standard]==0.27.0
 sqlalchemy==2.0.25
 alembic==1.13.1
 pymysql==1.1.0
+psycopg2-binary==2.9.9
 cryptography==42.0.0
 
 # JWT 인증
@@ -18,12 +19,17 @@ pillow>=11.0.0
 numpy>=1.24.0,<2.0.0
 segmentation-models-pytorch==0.3.3
 
+# Celery + Redis
+celery[redis]==5.4.0
+redis==5.0.1
+
 # 유틸리티
 python-dotenv>=1.0.1
 pydantic>=2.10.0
 pydantic-settings>=2.7.0
 email-validator>=2.2.0
+watchdog>=3.0.0
 
 # PyTorch - 별도 설치 필요
-# GPU (CUDA 12.1): uv pip install torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cu121
-# CPU: uv pip install torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cpu
+# GPU (CUDA 12.1): pip install torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cu121
+# CPU: pip install torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cpu

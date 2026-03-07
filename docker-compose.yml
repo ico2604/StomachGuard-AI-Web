@@ -1,0 +1,157 @@
+# ====================================================================
+# Docker Compose - 프로덕션 환경
+# 위암 분류 병원 관리 시스템 (Celery + Redis + PostgreSQL)
+# ====================================================================
+#
+# 실행: docker compose up -d --build
+# 종료: docker compose down
+# DB 초기화: docker compose exec fastapi python init_db.py
+# ====================================================================
+
+services:
+  # ===========================
+  # Redis (브로커 + 결과 백엔드)
+  # ===========================
+  redis:
+    image: redis:7-alpine
+    container_name: gastric-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ===========================
+  # PostgreSQL 데이터베이스
+  # ===========================
+  postgres:
+    image: postgres:16-alpine
+    container_name: gastric-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-gastric}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-gastric_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-gastric_hospital}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-gastric} -d ${POSTGRES_DB:-gastric_hospital}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ===========================
+  # FastAPI 앱 서버
+  # ===========================
+  fastapi:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: fastapi
+    container_name: gastric-fastapi
+    env_file:
+      - .env.docker
+    environment:
+      - DATABASE_URL=postgresql+psycopg2://${POSTGRES_USER:-gastric}:${POSTGRES_PASSWORD:-gastric_secret}@postgres:5432/${POSTGRES_DB:-gastric_hospital}
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+    ports:
+      - "8000:8000"
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+    restart: unless-stopped
+
+  # ===========================
+  # Celery Worker (AI 추론)
+  # ===========================
+  celery-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: celery-worker
+    container_name: gastric-celery-worker
+    env_file:
+      - .env.docker
+    environment:
+      - DATABASE_URL=postgresql+psycopg2://${POSTGRES_USER:-gastric}:${POSTGRES_PASSWORD:-gastric_secret}@postgres:5432/${POSTGRES_DB:-gastric_hospital}
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - AI_MODEL_PATH=/app/models/mtl_best.pth
+      - AI_DEVICE=${AI_DEVICE:-cpu}
+      - BATCH_SIZE=${BATCH_SIZE:-8}
+      - BATCH_TIMEOUT_MS=${BATCH_TIMEOUT_MS:-100}
+    volumes:
+      - ./models:/app/models:ro  # 모델 파일 마운트 (읽기 전용)
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: unless-stopped
+
+  # ===========================
+  # Next.js 프론트엔드
+  # ===========================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: /api/v1
+    container_name: gastric-frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      fastapi:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+    restart: unless-stopped
+
+  # ===========================
+  # Nginx 리버스 프록시 (선택)
+  # ===========================
+  nginx:
+    image: nginx:alpine
+    container_name: gastric-nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - fastapi
+      - frontend
+    restart: unless-stopped
+
+volumes:
+  redis_data:
+  postgres_data:

@@ -6,7 +6,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import authAPI from '@/lib/api'
+import api from '@/lib/api'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -21,7 +21,7 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      const data = await authAPI.login(username, password);
+      const data = await api.login(username, password);
       console.log('로그인 성공 데이터:', data);
 
       if (data && data.access_token && data.user) {

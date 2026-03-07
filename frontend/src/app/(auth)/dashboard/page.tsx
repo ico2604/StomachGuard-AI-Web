@@ -16,6 +16,9 @@ interface Stats {
   total_visits: number;
   total_diagnoses: number;
   today_visits: number;
+  completed_visits: number;
+  pending_visits: number;
+  cancer_type_distribution: Record<string, number>;
 }
 
 export default function DashboardPage() {
@@ -32,7 +35,7 @@ export default function DashboardPage() {
     console.log("dashboard token:"+token)
     console.log("dashboard userStr:"+userStr)
     if (!token || !userStr) {
-      // router.push('/login');
+      router.push('/login');
       return;
     }
 
