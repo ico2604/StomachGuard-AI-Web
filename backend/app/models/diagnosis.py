@@ -45,7 +45,7 @@ class Diagnosis(Base):
     
     # 의사 검토
     is_reviewed = Column(Integer, default=0)  # 0: 미검토, 1: 검토 완료
-    reviewed_by = Column(Integer, ForeignKey("users.id"))
+    reviewed_by_id = Column(Integer, ForeignKey("users.id"))
     review_notes = Column(Text)  # 의사 소견
     final_diagnosis = Column(String(50))  # 최종 진단 (AI 결과 수정 가능)
     
@@ -55,7 +55,7 @@ class Diagnosis(Base):
     
     # Relationships
     visit = relationship("Visit", back_populates="diagnoses")
-    reviewer = relationship("User", foreign_keys=[reviewed_by])
+    reviewer = relationship("User", foreign_keys=[reviewed_by_id])
     
     def __repr__(self):
         return f"<Diagnosis(id={self.id}, prediction={self.prediction}, confidence={self.confidence:.2f})>"

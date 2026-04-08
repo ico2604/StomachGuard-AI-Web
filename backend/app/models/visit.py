@@ -34,12 +34,11 @@ class Visit(Base):
     patient = relationship("Patient", back_populates="visits")
     doctor = relationship("User", foreign_keys=[doctor_id])
     
-    # ⭐ 수정: lazy='dynamic'으로 변경하여 동적 로딩
     diagnoses = relationship(
         "Diagnosis",
         back_populates="visit",
         cascade="all, delete-orphan",
-        lazy="dynamic"
+        lazy="select"
     )
     
     def __repr__(self):

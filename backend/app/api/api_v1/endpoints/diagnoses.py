@@ -17,6 +17,37 @@ from app.models.patient import Patient
 router = APIRouter()
 
 
+@router.get("/stats/summary")
+def get_diagnosis_stats(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    진단 통계 요약
+    
+    - 전체/리뷰완료/미검토 건수
+    - 암 유형별 분포
+    """
+    
+    total = db.query(DiagnosisModel).count()
+    reviewed = db.query(DiagnosisModel).filter(DiagnosisModel.is_reviewed == 1).count()
+    unreviewed = db.query(DiagnosisModel).filter(DiagnosisModel.is_reviewed == 0).count()
+    
+    # 암 유형별 통계
+    diagnoses = db.query(DiagnosisModel).all()
+    cancer_distribution = {}
+    for diag in diagnoses:
+        cancer_type = diag.prediction_kr or "미분류"
+        cancer_distribution[cancer_type] = cancer_distribution.get(cancer_type, 0) + 1
+    
+    return {
+        "total": total,
+        "reviewed": reviewed,
+        "unreviewed": unreviewed,
+        "cancer_distribution": cancer_distribution
+    }
+
+
 @router.get("/", response_model=List[dict])
 def get_diagnoses(
     skip: int = 0,
@@ -226,34 +257,3 @@ def delete_diagnosis(
     db.delete(diagnosis)
     db.commit()
     return {"message": "진단 결과가 삭제되었습니다."}
-
-
-@router.get("/stats/summary")
-def get_diagnosis_stats(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
-):
-    """
-    진단 통계 요약
-    
-    - 전체/리뷰완료/미검토 건수
-    - 암 유형별 분포
-    """
-    
-    total = db.query(DiagnosisModel).count()
-    reviewed = db.query(DiagnosisModel).filter(DiagnosisModel.is_reviewed == 1).count()
-    unreviewed = db.query(DiagnosisModel).filter(DiagnosisModel.is_reviewed == 0).count()
-    
-    # 암 유형별 통계
-    diagnoses = db.query(DiagnosisModel).all()
-    cancer_distribution = {}
-    for diag in diagnoses:
-        cancer_type = diag.prediction_kr
-        cancer_distribution[cancer_type] = cancer_distribution.get(cancer_type, 0) + 1
-    
-    return {
-        "total": total,
-        "reviewed": reviewed,
-        "unreviewed": unreviewed,
-        "cancer_distribution": cancer_distribution
-    }

@@ -4,7 +4,7 @@
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime, date
 
@@ -17,6 +17,29 @@ from app.models.user import User
 from app.models.diagnosis import Diagnosis
 
 router = APIRouter()
+
+
+@router.get("/stats/summary")
+def get_visit_stats(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    진료 통계 요약
+    
+    - 전체/완료/대기 건수
+    - 의사별 진료 건수
+    """
+    
+    total = db.query(VisitModel).count()
+    completed = db.query(VisitModel).filter(VisitModel.status == "COMPLETED").count()
+    pending = db.query(VisitModel).filter(VisitModel.status == "PENDING").count()
+    
+    return {
+        "total": total,
+        "completed": completed,
+        "pending": pending
+    }
 
 
 @router.get("/", response_model=List[dict])
@@ -52,10 +75,10 @@ def get_visits(
         query = query.filter(VisitModel.status == status)
     
     if date_from:
-        query = query.filter(VisitModel.visit_date >= date_from)
+        query = query.filter(VisitModel.visit_date >= datetime.combine(date_from, datetime.min.time()))
     
     if date_to:
-        query = query.filter(VisitModel.visit_date <= date_to)
+        query = query.filter(VisitModel.visit_date <= datetime.combine(date_to, datetime.max.time()))
     
     # 최신순 정렬
     query = query.order_by(VisitModel.visit_date.desc())
@@ -67,6 +90,9 @@ def get_visits(
     for visit in visits:
         patient = db.query(Patient).filter(Patient.id == visit.patient_id).first()
         doctor = db.query(User).filter(User.id == visit.doctor_id).first()
+        
+        # 진단 결과 조회
+        diagnosis = db.query(Diagnosis).filter(Diagnosis.visit_id == visit.id).first()
         
         result.append({
             "id": visit.id,
@@ -84,6 +110,22 @@ def get_visits(
             "chief_complaint": visit.chief_complaint,
             "diagnosis_summary": visit.diagnosis_summary,
             "status": visit.status,
+            "diagnosis": {
+                "id": diagnosis.id,
+                "prediction": diagnosis.prediction,
+                "prediction_kr": diagnosis.prediction_kr,
+                "confidence": diagnosis.confidence,
+                "probabilities_kr": diagnosis.probabilities_kr,
+                "tumor_ratio": diagnosis.tumor_ratio,
+                "stroma_ratio": diagnosis.stroma_ratio,
+                "normal_ratio": diagnosis.normal_ratio,
+                "immune_ratio": diagnosis.immune_ratio,
+                "background_ratio": diagnosis.background_ratio,
+                "model_type": diagnosis.model_type,
+                "processing_time": diagnosis.processing_time,
+                "is_reviewed": diagnosis.is_reviewed,
+                "created_at": diagnosis.created_at.isoformat() if diagnosis.created_at else None
+            } if diagnosis else None,
             "created_at": visit.created_at.isoformat() if visit.created_at else None
         })
     
@@ -239,26 +281,3 @@ def delete_visit(
     db.delete(visit)
     db.commit()
     return {"message": "진료 기록이 삭제되었습니다."}
-
-
-@router.get("/stats/summary")
-def get_visit_stats(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
-):
-    """
-    진료 통계 요약
-    
-    - 전체/완료/대기 건수
-    - 의사별 진료 건수
-    """
-    
-    total = db.query(VisitModel).count()
-    completed = db.query(VisitModel).filter(VisitModel.status == "COMPLETED").count()
-    pending = db.query(VisitModel).filter(VisitModel.status == "PENDING").count()
-    
-    return {
-        "total": total,
-        "completed": completed,
-        "pending": pending
-    }

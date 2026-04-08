@@ -14,13 +14,15 @@ import ErrorMessage from '@/components/ErrorMessage';
 
 interface Patient {
   id: number;
-  patient_id: string;
+  patient_number: string;
   name: string;
-  date_of_birth: string;
+  birth_date: string;
   gender: string;
   phone: string;
-  address: string;
+  blood_type?: string;
+  notes?: string;
   created_at: string;
+  updated_at?: string;
 }
 
 export default function PatientsPage() {
@@ -31,10 +33,12 @@ export default function PatientsPage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
-    date_of_birth: '',
-    gender: 'M',
+    birth_date: '',
+    gender: 'male',
     phone: '',
-    address: '',
+    patient_number: '',
+    blood_type: '',
+    notes: '',
   });
 
   // 환자 목록 조회
@@ -63,14 +67,25 @@ export default function PatientsPage() {
       setShowAddModal(false);
       setFormData({
         name: '',
-        date_of_birth: '',
-        gender: 'M',
+        birth_date: '',
+        gender: 'male',
         phone: '',
-        address: '',
+        patient_number: '',
+        blood_type: '',
+        notes: '',
       });
       fetchPatients();
     } catch (err: any) {
       setError(err.response?.data?.detail || '환자 등록에 실패했습니다.');
+    }
+  };
+
+  // 성별 표시
+  const genderDisplay = (gender: string) => {
+    switch (gender) {
+      case 'male': return '남성';
+      case 'female': return '여성';
+      default: return gender;
     }
   };
 
@@ -104,7 +119,7 @@ export default function PatientsPage() {
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      환자 ID
+                      환자 번호
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       이름
@@ -119,6 +134,9 @@ export default function PatientsPage() {
                       연락처
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      혈액형
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       등록일
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -130,19 +148,22 @@ export default function PatientsPage() {
                   {patients.map((patient) => (
                     <tr key={patient.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {patient.patient_id}
+                        {patient.patient_number}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {patient.name}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {patient.date_of_birth}
+                        {patient.birth_date}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {patient.gender === 'M' ? '남성' : '여성'}
+                        {genderDisplay(patient.gender)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {patient.phone}
+                        {patient.phone || '-'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {patient.blood_type || '-'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {new Date(patient.created_at).toLocaleDateString('ko-KR')}
@@ -176,14 +197,14 @@ export default function PatientsPage() {
           <div className="flex items-center justify-center min-h-screen px-4">
             <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"></div>
 
-            <div className="bg-white rounded-lg overflow-hidden shadow-xl transform transition-all sm:max-w-lg sm:w-full">
+            <div className="relative bg-white rounded-lg overflow-hidden shadow-xl transform transition-all sm:max-w-lg sm:w-full">
               <form onSubmit={handleSubmit}>
                 <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
                   <h3 className="text-lg font-medium text-gray-900 mb-4">환자 등록</h3>
 
                   <div className="space-y-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">이름</label>
+                      <label className="block text-sm font-medium text-gray-700">이름 *</label>
                       <input
                         type="text"
                         required
@@ -194,30 +215,42 @@ export default function PatientsPage() {
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">생년월일</label>
+                      <label className="block text-sm font-medium text-gray-700">환자 번호 *</label>
                       <input
-                        type="date"
+                        type="text"
                         required
-                        value={formData.date_of_birth}
-                        onChange={(e) => setFormData({ ...formData, date_of_birth: e.target.value })}
+                        value={formData.patient_number}
+                        onChange={(e) => setFormData({ ...formData, patient_number: e.target.value })}
+                        placeholder="예: P2024003"
                         className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">성별</label>
+                      <label className="block text-sm font-medium text-gray-700">생년월일 *</label>
+                      <input
+                        type="date"
+                        required
+                        value={formData.birth_date}
+                        onChange={(e) => setFormData({ ...formData, birth_date: e.target.value })}
+                        className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">성별 *</label>
                       <select
                         value={formData.gender}
                         onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
                         className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                       >
-                        <option value="M">남성</option>
-                        <option value="F">여성</option>
+                        <option value="male">남성</option>
+                        <option value="female">여성</option>
                       </select>
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">연락처</label>
+                      <label className="block text-sm font-medium text-gray-700">연락처 *</label>
                       <input
                         type="tel"
                         required
@@ -229,10 +262,29 @@ export default function PatientsPage() {
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">주소</label>
+                      <label className="block text-sm font-medium text-gray-700">혈액형</label>
+                      <select
+                        value={formData.blood_type}
+                        onChange={(e) => setFormData({ ...formData, blood_type: e.target.value })}
+                        className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                      >
+                        <option value="">선택하세요</option>
+                        <option value="A+">A+</option>
+                        <option value="A-">A-</option>
+                        <option value="B+">B+</option>
+                        <option value="B-">B-</option>
+                        <option value="O+">O+</option>
+                        <option value="O-">O-</option>
+                        <option value="AB+">AB+</option>
+                        <option value="AB-">AB-</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">비고</label>
                       <textarea
-                        value={formData.address}
-                        onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                        value={formData.notes}
+                        onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                         rows={2}
                         className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                       />
